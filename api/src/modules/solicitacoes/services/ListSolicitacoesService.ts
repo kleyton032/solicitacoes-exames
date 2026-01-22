@@ -7,8 +7,8 @@ class ListSolicitacoesService {
         this.solicitacoesRepository = new SolicitacoesRepository();
     }
 
-    async execute() {
-        const solicitacoes = await this.solicitacoesRepository.findAll();
+    async execute(cd_paciente?: number) {
+        const solicitacoes = await this.solicitacoesRepository.findAll(cd_paciente);
         return solicitacoes;
     }
 }

@@ -1,5 +1,5 @@
 import { ISolicitacaoDTO } from '../dtos/ISolicitacaoDTO';
 
 export interface ISolicitacoesRepository {
-    findAll(): Promise<ISolicitacaoDTO[]>;
+    findAll(cd_paciente?: number): Promise<ISolicitacaoDTO[]>;
 }

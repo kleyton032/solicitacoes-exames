@@ -23,7 +23,12 @@ export class OracleConnection {
 
         try {
             try {
-                oracledb.initOracleClient();
+                const libDir = process.env.ORACLE_CLIENT_PATH;
+                if (libDir) {
+                    oracledb.initOracleClient({ libDir });
+                } else {
+                    oracledb.initOracleClient();
+                }
             } catch (err: any) {
                 if (err.message.includes('DPI-1047')) {
                     console.error('Error initializing Thick Mode: Oracle Client libraries not found in PATH.', err.message);
