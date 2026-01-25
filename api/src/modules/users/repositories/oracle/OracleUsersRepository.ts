@@ -27,7 +27,7 @@ export class OracleUsersRepository implements IUsersRepository {
             e: { type: 2001, dir: 3003 },
             p: { type: 2001, dir: 3003 },
             c: { type: 2004, dir: 3003 }
-        });
+        }, { autoCommit: true });
 
 
         if (roles && roles.length > 0) {
@@ -35,7 +35,8 @@ export class OracleUsersRepository implements IUsersRepository {
                 await this.connection.execute(
                     `INSERT INTO AUTH_USER_ROLES (USER_ID, ROLE_ID)
                      SELECT :user_id, ID FROM AUTH_ROLES WHERE NAME = :role_name`,
-                    { user_id: result.outBinds.id[0], role_name: roleName }
+                    { user_id: result.outBinds.id[0], role_name: roleName },
+                    { autoCommit: true }
                 );
             }
         }
