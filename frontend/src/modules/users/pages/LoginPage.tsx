@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { api } from '../../../shared/infra/http/api';
+import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export function LoginPage() {
     const [email, setEmail] = useState('');
@@ -7,15 +9,17 @@ export function LoginPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    async function handleLogin(e: React.FormEvent) {
+    const { signIn } = useAuth();
+    const navigate = useNavigate();
+
+    async function handleLogin(e: FormEvent) {
         e.preventDefault();
         setLoading(true);
         setError(null);
 
         try {
-            const response = await api.post('/sessions', { email, password });
-            console.log('Login successful:', response);
-            alert('Login realizado com sucesso!');
+            await signIn({ email, hash: password });
+            navigate('/dashboard');
         } catch (err: any) {
             console.error(err);
             setError(err.message || 'Falha no login. Verifique suas credenciais.');
