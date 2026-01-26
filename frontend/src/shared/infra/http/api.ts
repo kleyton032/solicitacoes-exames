@@ -13,6 +13,7 @@ async function httpClient(endpoint: string, { body, ...customConfig }: RequestOp
         headers: {
             ...headers,
             ...customConfig.headers,
+            'Authorization': `Bearer ${localStorage.getItem('@Solicitacoes:token')}`,
         },
     };
 
