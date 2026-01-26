@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import { routes } from './routes';
+import cors from 'cors';
 
 const app = express();
+app.use(cors());
 
 app.use(express.json());
 
