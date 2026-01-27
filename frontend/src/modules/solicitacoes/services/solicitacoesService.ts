@@ -6,6 +6,7 @@ export interface Solicitacao {
     nr_cns: string;
     cd_it_agend: number;
     tp_situacao: string;
+    ds_item_agendamento: string;
     cd_multi_empresa: string;
 }
 
