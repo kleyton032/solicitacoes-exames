@@ -7,25 +7,30 @@ import { PreAgendamentoList } from './modules/preAgendamento/pages/PreAgendament
 import { AuthProvider } from './modules/users/contexts/AuthContext';
 import { PrivateRoute } from './shared/components/PrivateRoute';
 
+import { ConfigProvider } from 'antd';
+import { theme } from './shared/theme/theme';
+
 function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
+    <ConfigProvider theme={theme}>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
 
-          <Route path="/dashboard" element={<PrivateRoute />}>
-            <Route element={<DashboardLayout />}>
-              <Route path="solicitacoes" element={<SolicitacoesList />} />
-              <Route path="pre-agendamento" element={<PreAgendamentoList />} />
-              <Route index element={<Navigate to="solicitacoes" replace />} />
+            <Route path="/dashboard" element={<PrivateRoute />}>
+              <Route element={<DashboardLayout />}>
+                <Route path="solicitacoes" element={<SolicitacoesList />} />
+                <Route path="pre-agendamento" element={<PreAgendamentoList />} />
+                <Route index element={<Navigate to="solicitacoes" replace />} />
+              </Route>
             </Route>
-          </Route>
 
-          <Route path="/" element={<Navigate to="/dashboard/solicitacoes" replace />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+            <Route path="/" element={<Navigate to="/dashboard/solicitacoes" replace />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+    </ConfigProvider>
   );
 }
 

@@ -22,7 +22,14 @@ class SolicitacoesRepository implements ISolicitacoesRepository {
         p.nr_cpf, 
         p.nr_cns,
         le.cd_it_agend,
-        le.tp_situacao,
+        i.ds_item_agendamento,
+        DECODE(le.tp_situacao, 
+          'A', 'Aguardando', 
+          'T', 'Atendido', 
+          'C', 'Cancelado', 
+          'M', 'Marcado', 
+          'S', 'Solicitado', 
+          le.tp_situacao) as tp_situacao,
         le.cd_multi_empresa
       FROM
         fav_lista_espera le,
@@ -40,6 +47,7 @@ class SolicitacoesRepository implements ISolicitacoesRepository {
       nr_cns: row.NR_CNS,
       cd_it_agend: row.CD_IT_AGEND,
       tp_situacao: row.TP_SITUACAO,
+      ds_item_agendamento: row.DS_ITEM_AGENDAMENTO,
       cd_multi_empresa: row.CD_MULTI_EMPRESA,
     }));
 
