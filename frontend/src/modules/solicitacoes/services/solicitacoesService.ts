@@ -7,6 +7,9 @@ export interface Solicitacao {
     cd_it_agend: number;
     tp_situacao: string;
     ds_item_agendamento: string;
+    dt_lanca_lista: string;
+    item_agendamento_correlato?: string;
+    ds_item_agendamento_correlato?: string;
     cd_multi_empresa: string;
 }
 
@@ -19,3 +22,4 @@ export const solicitacoesService = {
         return api.get(url) as Promise<Solicitacao[]>;
     }
 };
+

@@ -2,6 +2,7 @@ import { compare } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 import authConfig from "../../../config/auth";
 import { IUsersRepository } from "../repositories/IUsersRepository";
+import { redisClient } from "../../../shared/infra/redis";
 
 interface IRequest {
     email: string;
@@ -47,6 +48,9 @@ export class AuthenticateUserService {
                 expiresIn: expiresIn as any,
             }
         );
+
+        // Save session in Redis (1 day = 86400 seconds)
+        await redisClient.set(`session:${token}`, String(user.id), 'EX', 86400);
 
         return {
             user: {

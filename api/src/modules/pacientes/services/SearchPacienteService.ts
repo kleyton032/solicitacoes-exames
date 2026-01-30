@@ -1,11 +1,11 @@
 import { IPacientesRepository, ISearchPacienteFilter } from '../repositories/IPacientesRepository';
-import { PacientesRepository } from '../repositories/PacientesRepository';
+import { PostgresPacientesRepository } from '../repositories/postgres/PostgresPacientesRepository';
 
 class SearchPacienteService {
     private pacientesRepository: IPacientesRepository;
 
     constructor() {
-        this.pacientesRepository = new PacientesRepository();
+        this.pacientesRepository = new PostgresPacientesRepository();
     }
 
     async execute(filter: ISearchPacienteFilter) {

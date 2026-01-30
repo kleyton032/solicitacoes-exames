@@ -1,10 +1,10 @@
-import { SolicitacoesRepository } from '../repositories/SolicitacoesRepository';
+import { PostgresSolicitacoesRepository } from '../repositories/postgres/PostgresSolicitacoesRepository';
 
 class ListSolicitacoesService {
-    private solicitacoesRepository: SolicitacoesRepository;
+    private solicitacoesRepository: PostgresSolicitacoesRepository;
 
     constructor() {
-        this.solicitacoesRepository = new SolicitacoesRepository();
+        this.solicitacoesRepository = new PostgresSolicitacoesRepository();
     }
 
     async execute(cd_paciente?: number) {
