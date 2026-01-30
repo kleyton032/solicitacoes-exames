@@ -4,6 +4,10 @@ import { ListSolicitacoesController } from '../controllers/ListSolicitacoesContr
 const solicitacoesRoutes = Router();
 const listSolicitacoesController = new ListSolicitacoesController();
 
+
 solicitacoesRoutes.get('/', listSolicitacoesController.handle);
+
+
+
 
 export { solicitacoesRoutes };

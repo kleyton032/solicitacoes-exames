@@ -13,4 +13,7 @@ routes.use('/solicitacoes', solicitacoesRoutes);
 routes.use('/pacientes', pacientesRoutes);
 routes.use('/pre-agendamento', preAgendamentoRoutes);
 
+import { syncRoutes } from '../../../../modules/sync/infra/http/routes/sync.routes';
+routes.use('/sync', syncRoutes);
+
 export { routes };

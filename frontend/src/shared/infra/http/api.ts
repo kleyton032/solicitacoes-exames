@@ -10,6 +10,7 @@ async function httpClient(endpoint: string, { body, ...customConfig }: RequestOp
     const config: RequestInit = {
         method: body ? 'POST' : 'GET',
         ...customConfig,
+        credentials: 'include',
         headers: {
             ...headers,
             ...customConfig.headers,

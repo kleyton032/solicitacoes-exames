@@ -21,7 +21,7 @@ interface SignInCredentials {
 interface AuthContextData {
     user: User;
     signIn(credentials: SignInCredentials): Promise<void>;
-    signOut(): void;
+    signOut(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -52,7 +52,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setData({ token, user });
     }, []);
 
-    const signOut = useCallback(() => {
+    const signOut = useCallback(async () => {
+        try {
+            await api.delete('/sessions');
+        } catch (err) {
+            console.error('Falha ao deslogar no servidor', err);
+        }
         localStorage.removeItem('@Solicitacoes:token');
         localStorage.removeItem('@Solicitacoes:user');
 
