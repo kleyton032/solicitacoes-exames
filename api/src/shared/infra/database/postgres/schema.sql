@@ -1,7 +1,7 @@
 -- Users / Auth
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY, -- Changed from SERIAL to INTEGER to allow syncing ID from Oracle if needed, or keep SERIAL but allow explicit insert
-    legacy_user_id VARCHAR(50), -- Changed from INTEGER to VARCHAR(50)
+    legacy_user_id VARCHAR(50) UNIQUE, -- Changed from INTEGER to VARCHAR(50) and added UNIQUE constraint
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(500) NOT NULL, -- Changed from VARCHAR(255) to VARCHAR(500)

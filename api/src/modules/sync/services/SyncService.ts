@@ -34,8 +34,7 @@ export class SyncService {
                     await client.query(`
                         INSERT INTO users (id, legacy_user_id, name, email, password_hash, created_at)
                         VALUES ($1, $2, $3, $4, $5, $6)
-                        ON CONFLICT (id) DO UPDATE SET
-                            legacy_user_id = EXCLUDED.legacy_user_id,
+                        ON CONFLICT (legacy_user_id) DO UPDATE SET
                             name = EXCLUDED.name,
                             email = EXCLUDED.email,
                             password_hash = EXCLUDED.password_hash

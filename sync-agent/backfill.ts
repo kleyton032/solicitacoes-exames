@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-// Configuration
+// Configuração
 const envPath = path.resolve(__dirname, '../api/.env.db');
 if (fs.existsSync(envPath)) {
     dotenv.config({ path: envPath });
@@ -17,20 +17,36 @@ const ORACLE_USER = process.env.ORACLE_USER;
 const ORACLE_PASSWORD = process.env.ORACLE_PASSWORD;
 const ORACLE_CONNECTION_STRING = process.env.ORACLE_CONNECTION;
 const API_URL = 'http://localhost:3333/sync/data';
+const LOG_URL = 'http://localhost:3333/sync/log';
 const API_KEY = process.env.SYNC_API_KEY;
 
+// --- Auxiliar para Logs ---
+const sendLog = async (status: 'SUCCESS' | 'ERROR' | 'INFO', message: string, summary?: string) => {
+    try {
+        await axios.post(LOG_URL, {
+            status,
+            message,
+            payload_summary: summary
+        }, {
+            headers: { 'x-sync-key': API_KEY }
+        });
+    } catch (err: any) {
+        console.error('  [AVISO] Falha ao enviar log para API:', err.message);
+    }
+};
+
 // --- CONFIGURAÇÃO (FLAGS PARA TESTE) ---
-const ENABLE_AUTH = true;           // Tabela de Usuários e Roles
+const ENABLE_AUTH = false;           // Tabela de Usuários e Roles
 const ENABLE_PACIENTES = true;      // Tabela Pai
-const ENABLE_ITEMS = true;          // Dependência de Agenda e Solicitações
+const ENABLE_ITEMS = false;          // Dependência de Agenda e Solicitações
 const ENABLE_AGENDA = false;        // Depende de Paciente
 const ENABLE_SOLICITACOES = false;  // Depende de Paciente e Agenda
 
 // Configuração do range de anos (PARA TESTE: APENAS 2024)
-const START_YEAR = 2026;
-const END_YEAR = 2026;
+const START_YEAR = 2011;
+const END_YEAR = 2011;
 
-// --- Helper for Chunking (Moved to outer scope) ---
+// --- Auxiliar para Envio em Lotes (Escopo externo) ---
 const sendInChunks = async (data: any[], type: string) => {
     if (!data || data.length === 0) return;
 
@@ -44,7 +60,7 @@ const sendInChunks = async (data: any[], type: string) => {
 
         console.log(`  > Enviando ${type} Lote ${batchNum}/${totalBatches} (${chunk.length} itens)...`);
 
-        // Construct payload just for this chunk
+        // Construir payload apenas para este lote
         const payload = {
             roles: type === 'ROLES' ? chunk : [],
             users: type === 'USERS' ? chunk : [],
@@ -77,15 +93,21 @@ const sendInChunks = async (data: any[], type: string) => {
                     await new Promise(res => setTimeout(res, 2000));
                 } else {
                     if (err.response && err.response.data) {
-                        console.error('  [RESPOSTA DO SERVIDOR]:', JSON.stringify(err.response.data, null, 2));
+                        const errMsg = JSON.stringify(err.response.data, null, 2);
+                        console.error('  [RESPOSTA DO SERVIDOR]:', errMsg);
+                        await sendLog('ERROR', `Falha no Backfill (${type}) Lote ${batchNum}`, errMsg);
                     }
                     break;
                 }
             }
         }
 
-        if (!success) {
-            console.error(`  [ERRO] Falha ao sincronizar ${type} Lote ${batchNum} após ${MAX_RETRIES} tentativas.`);
+        if (success) {
+            await sendLog('SUCCESS', `Backfill (${type}) Lote ${batchNum}/${totalBatches} OK`, `${chunk.length} itens enviados.`);
+        } else {
+            const msg = `Falha ao sincronizar ${type} Lote ${batchNum} após ${MAX_RETRIES} tentativas.`;
+            console.error(`  [ERRO] ${msg}`);
+            await sendLog('ERROR', msg);
         }
     }
     console.log(`[OK] Todos os lotes de ${type} enviados.`);
@@ -118,7 +140,7 @@ async function syncAuth(connection: any) {
     }
 }
 
-// Use 'any' for connection to avoid TS errors
+// Usar 'any' para evitar erros de TS na conexão
 async function syncYear(connection: any, year: number) {
     console.log(`\n=== Processando Ano: ${year} ===`);
 
@@ -154,12 +176,30 @@ async function syncYear(connection: any, year: number) {
                 ds_complemento_tutor, nm_tutor, dt_nascimento_tutor, tp_sexo_tutor, nr_cpf_tutor
             FROM PACIENTE 
             WHERE dt_cadastro >= :startDate AND dt_cadastro <= :endDate
-        `, { startDate, endDate });
+        `, { startDate, endDate }, { resultSet: true }); // Habilitar streaming
 
-        if (result.rows) {
-            pacientesRows = result.rows;
+        const rs = result.resultSet;
+        let batchCount = 0;
+        let totalProcessed = 0;
+
+        try {
+            while (true) {
+                const rows = await rs.getRows(500); // Buscar 500 linhas por vez
+                if (!rows || rows.length === 0) {
+                    break;
+                }
+
+                batchCount++;
+                totalProcessed += rows.length;
+                console.log(`  > Processando Pacientes Lote ${batchCount} (${rows.length} itens) - Total: ${totalProcessed}...`);
+
+                // Enviar imediatamente
+                await sendInChunks(rows, 'PACIENTES');
+            }
+        } finally {
+            await rs.close();
         }
-        console.log(`> Encontrados ${pacientesRows.length} Pacientes.`);
+        console.log(`> Finalizado Pacientes: ${totalProcessed} itens processados.`);
     }
 
     // --- 1.1 ITEM AGENDAMENTO ---
@@ -182,6 +222,7 @@ async function syncYear(connection: any, year: number) {
     // --- 2. AGENDA CENTRAL ---
     if (ENABLE_AGENDA) {
         console.log(`Buscando Agendas para ${year}...`);
+
         const result = await connection.execute(`
             SELECT 
                  cd_agenda_central, hr_agenda, cd_paciente, nm_paciente, vl_altura, qt_peso, dt_nascimento, sn_atendido,
@@ -196,12 +237,30 @@ async function syncYear(connection: any, year: number) {
                  cd_log_opera_agenda
             FROM IT_AGENDA_CENTRAL 
             WHERE hr_agenda >= :startDate AND hr_agenda <= :endDate
-        `, { startDate, endDate });
+        `, { startDate, endDate }, { resultSet: true }); // Habilitar streaming
 
-        if (result.rows) {
-            agendaRows = result.rows;
+        const rs = result.resultSet;
+        let batchCount = 0;
+        let totalProcessed = 0;
+
+        try {
+            while (true) {
+                const rows = await rs.getRows(500); // Buscar 500 linhas por vez
+                if (!rows || rows.length === 0) {
+                    break;
+                }
+
+                batchCount++;
+                totalProcessed += rows.length;
+                console.log(`  > Processando Agenda Lote ${batchCount} (${rows.length} itens) - Total: ${totalProcessed}...`);
+
+                // Enviar imediatamente
+                await sendInChunks(rows, 'AGENDA');
+            }
+        } finally {
+            await rs.close();
         }
-        console.log(`> Encontradas ${agendaRows.length} Agendas.`);
+        console.log(`> Finalizado Agendas: ${totalProcessed} itens processados.`);
     }
 
     // --- 3. SOLICITACOES ---
@@ -245,7 +304,9 @@ async function syncYear(connection: any, year: number) {
 
             FROM FAV_LISTA_ESPERA le
             LEFT JOIN ITEM_AGENDAMENTO i ON le.cd_it_agend = i.cd_item_agendamento
-            WHERE le.dt_lanca_lista >= :startDate AND le.dt_lanca_lista <= :endDate
+            WHERE le.dt_lanca_lista >= :startDate 
+              AND le.dt_lanca_lista <= :endDate
+              AND le.tp_situacao <> 'C'
             AND ROWNUM <= 5000 
         `, { startDate, endDate });
 
@@ -255,10 +316,10 @@ async function syncYear(connection: any, year: number) {
         console.log(`> Encontradas ${solicitacoesRows.length} Solicitações.`);
     }
 
-    // Send Data (Sequentially by Type)
-    if (pacientesRows.length > 0) await sendInChunks(pacientesRows, 'PACIENTES');
+    // Enviar Dados (Sequencialmente por Tipo)
+    // if (pacientesRows.length > 0) await sendInChunks(pacientesRows, 'PACIENTES'); // Removido: Tratado no stream
     if (itemsRows.length > 0) await sendInChunks(itemsRows, 'ITEMS');
-    if (agendaRows.length > 0) await sendInChunks(agendaRows, 'AGENDA');
+    // if (agendaRows.length > 0) await sendInChunks(agendaRows, 'AGENDA'); // Removido: Tratado no stream
     if (solicitacoesRows.length > 0) await sendInChunks(solicitacoesRows, 'SOLICITACOES');
 
     if (!pacientesRows.length && !itemsRows.length && !agendaRows.length && !solicitacoesRows.length) {
@@ -287,7 +348,7 @@ async function runBackfill() {
         // 0. Autenticação (Executa uma vez antes do loop)
         await syncAuth(connection);
 
-        // Loop years
+        // Executar loop por anos
         for (let year = START_YEAR; year <= END_YEAR; year++) {
             await syncYear(connection, year);
         }
