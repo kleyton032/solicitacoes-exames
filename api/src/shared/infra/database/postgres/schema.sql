@@ -227,8 +227,8 @@ CREATE TABLE IF NOT EXISTS it_agenda_central (
 -- Solicitacoes / Lista de Espera
 CREATE TABLE IF NOT EXISTS solicitacoes (
     cd_lista_espera INTEGER PRIMARY KEY,
-    cd_paciente INTEGER NOT NULL REFERENCES paciente(cd_paciente),
-    cd_it_agend INTEGER REFERENCES item_agendamento(cd_item_agendamento),
+    cd_paciente INTEGER NOT NULL,
+    cd_it_agend INTEGER,
     cd_atendimento INTEGER,
     cd_procedimento INTEGER,
     dt_atendimento TIMESTAMP,
@@ -241,7 +241,7 @@ CREATE TABLE IF NOT EXISTS solicitacoes (
     observ VARCHAR(4000),
     dt_agendamento TIMESTAMP,
     dt_marcacao TIMESTAMP,
-    cd_it_agenda_central INTEGER REFERENCES it_agenda_central(cd_it_agenda_central),
+    cd_it_agenda_central INTEGER,
     nm_usuario_marc VARCHAR(30),
     dt_realizacao TIMESTAMP,
     dt_lanca_lista TIMESTAMP,

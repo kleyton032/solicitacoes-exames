@@ -39,12 +39,12 @@ const sendLog = async (status: 'SUCCESS' | 'ERROR' | 'INFO', message: string, su
 const ENABLE_AUTH = false;           // Tabela de Usuários e Roles
 const ENABLE_PACIENTES = true;      // Tabela Pai
 const ENABLE_ITEMS = false;          // Dependência de Agenda e Solicitações
-const ENABLE_AGENDA = false;        // Depende de Paciente
-const ENABLE_SOLICITACOES = false;  // Depende de Paciente e Agenda
+const ENABLE_AGENDA = true;        // Depende de Paciente
+const ENABLE_SOLICITACOES = true;  // Depende de Paciente e Agenda
 
 // Configuração do range de anos (PARA TESTE: APENAS 2024)
-const START_YEAR = 2011;
-const END_YEAR = 2011;
+const START_YEAR = 2020;
+const END_YEAR = 2020;
 
 // --- Auxiliar para Envio em Lotes (Escopo externo) ---
 const sendInChunks = async (data: any[], type: string) => {
@@ -210,7 +210,6 @@ async function syncYear(connection: any, year: number) {
                 cd_item_agendamento, ds_item_agendamento, tp_item, cd_exa_lab, cd_exa_rx, cd_pro_fat, cd_ssm,
                 hr_realizacao, sn_ativo, sn_checa_guia, ds_mnemonico, cd_procedimento_sia, sn_sugere_alt_tempo_anestesia
             FROM ITEM_AGENDAMENTO
-            WHERE ROWNUM <= 5000 
         `);
 
         if (result.rows) {
@@ -236,7 +235,9 @@ async function syncYear(connection: any, year: number) {
                  nr_ddi_telefone, nr_ddd_celular, nr_ddi_celular, nr_id_envio_sms, nr_ddd_fone, cd_movimento_pactuacao,
                  cd_log_opera_agenda
             FROM IT_AGENDA_CENTRAL 
-            WHERE hr_agenda >= :startDate AND hr_agenda <= :endDate
+            WHERE hr_agenda >= :startDate 
+              AND hr_agenda <= :endDate
+              AND cd_paciente IS NOT NULL -- Remove vagas em aberto (Mantém Encaixes: 1113567, 2237259)
         `, { startDate, endDate }, { resultSet: true }); // Habilitar streaming
 
         const rs = result.resultSet;
@@ -267,60 +268,48 @@ async function syncYear(connection: any, year: number) {
     if (ENABLE_SOLICITACOES) {
         console.log(`Buscando Solicitações para ${year}...`);
         const result = await connection.execute(`
-             SELECT
+            SELECT
                 le.cd_lista_espera, le.cd_paciente, le.cd_it_agend, le.cd_atendimento, le.cd_procedimento, le.dt_atendimento,
                 le.cd_prestador, le.cd_ori_ate, le.cd_convenio, le.cd_multi_empresa, le.olho, le.tp_situacao, le.observ,
                 le.dt_agendamento, le.dt_marcacao, le.cd_it_agenda_central, le.nm_usuario_marc, le.dt_realizacao, le.dt_lanca_lista,
                 le.cd_atendimento_r, le.sn_encaixe, le.cd_documento, le.cd_priori, le.ds_priori, le.cd_usuario_edit,
                 le.cd_perg_od, le.cd_perg_oe, le.cd_id_fila, le.dt_retorno, le.sn_cota, le.resposta_retorno, le.cer_periodic,
-                le.cer_tp_grup, le.cer_qt_grup, le.cer_tot_ses, le.cer_sessao,
-                
-                i.ds_item_agendamento,
-
-                (SELECT MIN(iac.hr_agenda) 
-                 FROM it_agenda_central iac, item_agendamento i_ag
-                 WHERE iac.cd_paciente = le.cd_paciente 
-                   AND iac.hr_agenda >= le.dt_lanca_lista
-                   AND iac.cd_item_agendamento = i_ag.cd_item_agendamento
-                   AND le.tp_situacao = 'G'
-                   AND (i_ag.ds_item_agendamento LIKE '%' || SUBSTR(i.ds_item_agendamento, 1, 8) || '%'
-                        OR i.ds_item_agendamento LIKE '%' || SUBSTR(i_ag.ds_item_agendamento, 1, 8) || '%')
-                ) as item_agendamento_correlato,
-
-                (SELECT ds_item_agendamento 
-                 FROM (
-                   SELECT i2.ds_item_agendamento, iac2.cd_paciente, iac2.hr_agenda
-                   FROM it_agenda_central iac2, item_agendamento i2
-                   WHERE iac2.cd_item_agendamento = i2.cd_item_agendamento
-                   ORDER BY iac2.hr_agenda ASC
-                 ) iac_sub
-                 WHERE iac_sub.cd_paciente = le.cd_paciente
-                   AND iac_sub.hr_agenda >= le.dt_lanca_lista
-                   AND le.tp_situacao = 'G'
-                   AND (iac_sub.ds_item_agendamento LIKE '%' || SUBSTR(i.ds_item_agendamento, 1, 8) || '%'
-                        OR i.ds_item_agendamento LIKE '%' || SUBSTR(iac_sub.ds_item_agendamento, 1, 8) || '%')
-                   AND ROWNUM = 1
-                ) as ds_item_agendamento_correlato
-
+                le.cer_tp_grup, le.cer_qt_grup, le.cer_tot_ses, le.cer_sessao
             FROM FAV_LISTA_ESPERA le
-            LEFT JOIN ITEM_AGENDAMENTO i ON le.cd_it_agend = i.cd_item_agendamento
             WHERE le.dt_lanca_lista >= :startDate 
               AND le.dt_lanca_lista <= :endDate
               AND le.tp_situacao <> 'C'
-            AND ROWNUM <= 5000 
-        `, { startDate, endDate });
+        `, { startDate, endDate }, { resultSet: true }); // Habilitar streaming
 
-        if (result.rows) {
-            solicitacoesRows = result.rows;
+        const rs = result.resultSet;
+        let batchCount = 0;
+        let totalProcessed = 0;
+
+        try {
+            while (true) {
+                const rows = await rs.getRows(500); // Buscar 500 linhas por vez
+                if (!rows || rows.length === 0) {
+                    break;
+                }
+
+                batchCount++;
+                totalProcessed += rows.length;
+                console.log(`  > Processando Solicitações Lote ${batchCount} (${rows.length} itens) - Total: ${totalProcessed}...`);
+
+                // Enviar imediatamente
+                await sendInChunks(rows, 'SOLICITACOES');
+            }
+        } finally {
+            await rs.close();
         }
-        console.log(`> Encontradas ${solicitacoesRows.length} Solicitações.`);
+        console.log(`> Finalizado Solicitações: ${totalProcessed} itens processados.`);
     }
 
     // Enviar Dados (Sequencialmente por Tipo)
     // if (pacientesRows.length > 0) await sendInChunks(pacientesRows, 'PACIENTES'); // Removido: Tratado no stream
     if (itemsRows.length > 0) await sendInChunks(itemsRows, 'ITEMS');
     // if (agendaRows.length > 0) await sendInChunks(agendaRows, 'AGENDA'); // Removido: Tratado no stream
-    if (solicitacoesRows.length > 0) await sendInChunks(solicitacoesRows, 'SOLICITACOES');
+    // if (solicitacoesRows.length > 0) await sendInChunks(solicitacoesRows, 'SOLICITACOES'); // Removido: Tratado no stream
 
     if (!pacientesRows.length && !itemsRows.length && !agendaRows.length && !solicitacoesRows.length) {
         console.log(`[PULAR] Sem dados para o ano ${year}.`);

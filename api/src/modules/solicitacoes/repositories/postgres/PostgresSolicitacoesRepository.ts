@@ -9,13 +9,8 @@ class PostgresSolicitacoesRepository implements ISolicitacoesRepository {
 
     try {
       const values: any[] = [];
-      let whereClause = `
-            le.cd_paciente = p.cd_paciente
-            AND le.cd_it_agend = i.cd_item_agendamento
-        `;
 
       if (cd_paciente) {
-        whereClause += ' AND le.cd_paciente = $1';
         values.push(cd_paciente);
       }
 
@@ -66,10 +61,10 @@ class PostgresSolicitacoesRepository implements ISolicitacoesRepository {
             ) as ds_item_agendamento_correlato
 
           FROM
-            solicitacoes le,
-            paciente p,
-            item_agendamento i
-          WHERE ${whereClause}
+            solicitacoes le
+          LEFT JOIN paciente p ON le.cd_paciente = p.cd_paciente
+          LEFT JOIN item_agendamento i ON le.cd_it_agend = i.cd_item_agendamento
+          WHERE ${values.length > 0 ? 'le.cd_paciente = $1' : '1=1'}
           ORDER BY le.dt_lanca_lista DESC
         `;
 
