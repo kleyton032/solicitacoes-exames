@@ -66,6 +66,11 @@ async function fetchAndSync() {
         });
 
         // --- 1. USUÁRIOS & ROLES ---
+        const state = loadState();
+        const lastSync = state.lastSyncTime ? new Date(state.lastSyncTime) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+        console.log(`Buscando alterações desde: ${lastSync.toISOString()}`);
+
+        // --- 1. USUÁRIOS & ROLES ---
         const roles = await connection.execute('SELECT ID, NAME, DESCRIPTION FROM AUTH_ROLES');
         const users = await connection.execute('SELECT ID, LEGACY_USER_ID, NAME, EMAIL, PASSWORD_HASH, CREATED_AT FROM AUTH_CREDENTIALS');
         const userRoles = await connection.execute('SELECT USER_ID, ROLE_ID FROM AUTH_USER_ROLES');
@@ -90,8 +95,9 @@ async function fetchAndSync() {
                 sn_endereco_sem_numero, cd_banco, nr_agencia, ds_agencia, nr_conta, sn_frequenta_escola, ds_cargo_trabalho,
                 nr_registro_funcional_trabalho, ds_vinclulo_trabalho, ds_horario_trabalho, tp_paciente, cd_tip_paren,
                 ds_complemento_tutor, nm_tutor, dt_nascimento_tutor, tp_sexo_tutor, nr_cpf_tutor
-            FROM PACIENTE WHERE ROWNUM <= 100
-        `);
+            FROM PACIENTE 
+            WHERE dt_ultima_atualizacao >= :lastSync OR dt_cadastro >= :lastSync
+        `, { lastSync });
 
         // --- 3. ITEM AGENDAMENTO ---
         const items = await connection.execute(`
@@ -119,47 +125,18 @@ async function fetchAndSync() {
 
         // --- 5. SOLICITACOES (FAV_LISTA_ESPERA) ---
         const solicitacoes = await connection.execute(`
-             SELECT
+            SELECT
                 le.cd_lista_espera, le.cd_paciente, le.cd_it_agend, le.cd_atendimento, le.cd_procedimento, le.dt_atendimento,
                 le.cd_prestador, le.cd_ori_ate, le.cd_convenio, le.cd_multi_empresa, le.olho, le.tp_situacao, le.observ,
                 le.dt_agendamento, le.dt_marcacao, le.cd_it_agenda_central, le.nm_usuario_marc, le.dt_realizacao, le.dt_lanca_lista,
                 le.cd_atendimento_r, le.sn_encaixe, le.cd_documento, le.cd_priori, le.ds_priori, le.cd_usuario_edit,
                 le.cd_perg_od, le.cd_perg_oe, le.cd_id_fila, le.dt_retorno, le.sn_cota, le.resposta_retorno, le.cer_periodic,
-                le.cer_tp_grup, le.cer_qt_grup, le.cer_tot_ses, le.cer_sessao,
-                
-                -- Joined Data
-                i.ds_item_agendamento,
-
-                -- Subqueries
-                (SELECT MIN(iac.hr_agenda) 
-                 FROM it_agenda_central iac, item_agendamento i_ag
-                 WHERE iac.cd_paciente = le.cd_paciente 
-                   AND iac.hr_agenda >= le.dt_lanca_lista
-                   AND iac.cd_item_agendamento = i_ag.cd_item_agendamento
-                   AND le.tp_situacao = 'G'
-                   AND (i_ag.ds_item_agendamento LIKE '%' || SUBSTR(i.ds_item_agendamento, 1, 8) || '%'
-                        OR i.ds_item_agendamento LIKE '%' || SUBSTR(i_ag.ds_item_agendamento, 1, 8) || '%')
-                ) as item_agendamento_correlato,
-
-                (SELECT ds_item_agendamento 
-                 FROM (
-                   SELECT i2.ds_item_agendamento, iac2.cd_paciente, iac2.hr_agenda
-                   FROM it_agenda_central iac2, item_agendamento i2
-                   WHERE iac2.cd_item_agendamento = i2.cd_item_agendamento
-                   ORDER BY iac2.hr_agenda ASC
-                 ) iac_sub
-                 WHERE iac_sub.cd_paciente = le.cd_paciente
-                   AND iac_sub.hr_agenda >= le.dt_lanca_lista
-                   AND le.tp_situacao = 'G'
-                   AND (iac_sub.ds_item_agendamento LIKE '%' || SUBSTR(i.ds_item_agendamento, 1, 8) || '%'
-                        OR i.ds_item_agendamento LIKE '%' || SUBSTR(iac_sub.ds_item_agendamento, 1, 8) || '%')
-                   AND ROWNUM = 1
-                ) as ds_item_agendamento_correlato
-
+                le.cer_tp_grup, le.cer_qt_grup, le.cer_tot_ses, le.cer_sessao
             FROM FAV_LISTA_ESPERA le
-            LEFT JOIN ITEM_AGENDAMENTO i ON le.cd_it_agend = i.cd_item_agendamento
-            WHERE ROWNUM <= 100
-        `);
+            FROM FAV_LISTA_ESPERA le
+            WHERE le.dt_lanca_lista >= :lastSync
+            AND le.tp_situacao <> 'C'
+        `, { lastSync });
 
         const payload = {
             roles: roles.rows,
@@ -171,7 +148,7 @@ async function fetchAndSync() {
             solicitacoes: solicitacoes.rows
         };
 
-        const summary = `Buscados: Roles=${payload.roles?.length}, Users=${payload.users?.length}, Pacientes=${payload.pacientes?.length}, Solicitacoes=${payload.solicitacoes?.length}`;
+        const summary = `Buscados: Roles = ${payload.roles?.length}, Users = ${payload.users?.length}, Pacientes = ${payload.pacientes?.length}, Solicitacoes = ${payload.solicitacoes?.length} `;
         console.log(summary);
 
         // Push to API
@@ -192,7 +169,7 @@ async function fetchAndSync() {
 
     } catch (err: any) {
         console.error('Erro durante a sincronização:', err.message);
-        await sendLog('ERROR', `Erro durante a sincronização: ${err.message}`);
+        await sendLog('ERROR', `Erro durante a sincronização: ${err.message} `);
     } finally {
         if (connection) {
             try {
