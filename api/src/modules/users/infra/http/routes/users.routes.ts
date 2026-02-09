@@ -7,5 +7,8 @@ const usersRoutes = Router();
 const usersController = new UsersController();
 
 usersRoutes.post("/", ensureAuthenticated, ensureAdmin, usersController.create);
+usersRoutes.get("/", ensureAuthenticated, ensureAdmin, usersController.index);
+usersRoutes.get("/roles", ensureAuthenticated, ensureAdmin, usersController.findAllRoles);
+usersRoutes.post("/:id/roles", ensureAuthenticated, ensureAdmin, usersController.updateRoles);
 
 export { usersRoutes };

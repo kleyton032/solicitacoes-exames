@@ -37,13 +37,13 @@ const sendLog = async (status: 'SUCCESS' | 'ERROR' | 'INFO', message: string, su
 
 // --- CONFIGURAÇÃO (FLAGS PARA TESTE) ---
 const ENABLE_AUTH = false;           // Tabela de Usuários e Roles
-const ENABLE_PACIENTES = true;      // Tabela Pai
+const ENABLE_PACIENTES = false;      // Tabela Pai
 const ENABLE_ITEMS = false;          // Dependência de Agenda e Solicitações
-const ENABLE_AGENDA = true;        // Depende de Paciente
-const ENABLE_SOLICITACOES = false;  // Depende de Paciente e Agenda
+const ENABLE_AGENDA = false;        // Depende de Paciente
+const ENABLE_SOLICITACOES = true;  // Depende de Paciente e Agenda
 
 // Configuração do range de anos (PARA TESTE: APENAS 2024)
-const START_YEAR = 2025;
+const START_YEAR = 2020;
 const END_YEAR = 2026;
 
 // --- Auxiliar para Envio em Lotes (Escopo externo) ---

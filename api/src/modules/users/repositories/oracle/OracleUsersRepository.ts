@@ -108,4 +108,18 @@ export class OracleUsersRepository implements IUsersRepository {
 
         return undefined;
     }
+
+    public async findAll(): Promise<IUserDTO[]> {
+        // Not implemented for Oracle yet, focusing on Postgres
+        return [];
+    }
+
+    public async findAllRoles(): Promise<{ id: number; name: string }[]> {
+        // Not implemented for Oracle yet
+        return [];
+    }
+
+    public async updateRoles(user_id: number, roles: string[]): Promise<void> {
+        // Not implemented for Oracle yet
+    }
 }

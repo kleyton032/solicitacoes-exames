@@ -1,14 +1,14 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Layout, Menu, Button, theme } from 'antd';
-import { FileTextOutlined, CalendarOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from '@ant-design/icons';
+import { FileTextOutlined, CalendarOutlined, LogoutOutlined, MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from '@ant-design/icons';
 import { useAuth } from '../../../modules/users/contexts/AuthContext';
 
 const { Header, Sider, Content } = Layout;
 
 export function DashboardLayout() {
     const [collapsed, setCollapsed] = useState(false);
-    const { signOut } = useAuth();
+    const { signOut, user } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
     const {
@@ -25,6 +25,31 @@ export function DashboardLayout() {
     };
 
     const selectedKey = location.pathname;
+
+    const menuItems = useMemo(() => {
+        const items = [
+            {
+                key: '/dashboard/solicitacoes',
+                icon: <FileTextOutlined />,
+                label: 'Consultas/Exames',
+            },
+            {
+                key: '/dashboard/pre-agendamento',
+                icon: <CalendarOutlined />,
+                label: 'Pré-agendamento',
+            },
+        ];
+
+        if (user?.roles?.includes('ADMIN')) {
+            items.push({
+                key: '/admin/users',
+                icon: <SettingOutlined />,
+                label: 'Administração',
+            });
+        }
+
+        return items;
+    }, [user]);
 
     return (
         <Layout style={{ minHeight: '100vh' }}>
@@ -43,18 +68,7 @@ export function DashboardLayout() {
                     mode="inline"
                     selectedKeys={[selectedKey]}
                     onClick={handleMenuClick}
-                    items={[
-                        {
-                            key: '/dashboard/solicitacoes',
-                            icon: <FileTextOutlined />,
-                            label: 'Consultas/Exames',
-                        },
-                        {
-                            key: '/dashboard/pre-agendamento',
-                            icon: <CalendarOutlined />,
-                            label: 'Pré-agendamento',
-                        },
-                    ]}
+                    items={menuItems}
                 />
             </Sider>
             <Layout>

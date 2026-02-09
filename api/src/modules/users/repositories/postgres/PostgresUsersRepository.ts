@@ -130,4 +130,75 @@ export class PostgresUsersRepository implements IUsersRepository {
             client.release();
         }
     }
+
+    public async findAll(): Promise<IUserDTO[]> {
+        const db = PostgresConnection.getInstance();
+        const client = await db.getClient();
+
+        try {
+            const result = await client.query(`
+                SELECT u.*, array_agg(r.name) as roles
+                FROM users u
+                LEFT JOIN user_roles ur ON u.id = ur.user_id
+                LEFT JOIN roles r ON ur.role_id = r.id
+                GROUP BY u.id, u.legacy_user_id, u.name, u.email, u.password_hash, u.created_at
+            `);
+
+            return result.rows.map(row => ({
+                id: row.id,
+                legacy_user_id: row.legacy_user_id,
+                name: row.name,
+                email: row.email,
+                password_hash: row.password_hash,
+                created_at: row.created_at,
+                roles: row.roles ? row.roles.filter((r: any) => r !== null) : []
+            }));
+        } finally {
+            client.release();
+        }
+    }
+
+    public async findAllRoles(): Promise<{ id: number; name: string }[]> {
+        const db = PostgresConnection.getInstance();
+        const client = await db.getClient();
+        try {
+            const result = await client.query('SELECT id, name FROM roles');
+            return result.rows;
+        } finally {
+            client.release();
+        }
+    }
+
+    public async updateRoles(user_id: number, roles: string[]): Promise<void> {
+        const db = PostgresConnection.getInstance();
+        const client = await db.getClient();
+
+        try {
+            await client.query('BEGIN');
+
+            // Delete existing roles
+            await client.query('DELETE FROM user_roles WHERE user_id = $1', [user_id]);
+
+            // Add new roles
+            if (roles && roles.length > 0) {
+                for (const roleName of roles) {
+                    const roleRes = await client.query('SELECT id FROM roles WHERE name = $1', [roleName]);
+                    if (roleRes.rows.length > 0) {
+                        const roleId = roleRes.rows[0].id;
+                        await client.query(
+                            'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)',
+                            [user_id, roleId]
+                        );
+                    }
+                }
+            }
+
+            await client.query('COMMIT');
+        } catch (err) {
+            await client.query('ROLLBACK');
+            throw err;
+        } finally {
+            client.release();
+        }
+    }
 }

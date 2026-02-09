@@ -12,4 +12,7 @@ export interface IUsersRepository {
     create(data: ICreateUserDTO): Promise<IUserDTO>;
     findByEmail(email: string): Promise<IUserDTO | undefined>;
     findById(id: number): Promise<IUserDTO | undefined>;
+    findAll(): Promise<IUserDTO[]>;
+    updateRoles(user_id: number, roles: string[]): Promise<void>;
+    findAllRoles(): Promise<{ id: number; name: string }[]>;
 }
